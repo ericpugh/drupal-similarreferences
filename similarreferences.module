@@ -1,0 +1,22 @@
+<?php
+
+/**
+ * @file
+ * Contains similarreferences.module.
+ */
+
+use Drupal\Core\Routing\RouteMatchInterface;
+
+/**
+ * Implements hook_help().
+ */
+function similarreferences_help($route_name, RouteMatchInterface $route_match) {
+	switch ($route_name) {
+		case 'help.page.similarreferences':
+			$output = '';
+			$output .= '<h3>' . t('About') . '</h3>';
+			$output .= '<p>' . t('Similar By References') . '</p>';
+			return $output;
+			break;
+	}
+}

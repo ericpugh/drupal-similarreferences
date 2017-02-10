@@ -1,0 +1,7 @@
+name: Similar By References
+description: 'Use Views to show similar content based on shared values in entityreference fields.'
+core: 8.x
+type: module
+package: Views
+dependencies:
+  - drupal:views
