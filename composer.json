@@ -1,0 +1,14 @@
+{
+  "name": "drupal/similarreferences",
+  "type": "drupal-module",
+  "description": "Use Views to show similar content based on shared values in entityreference fields",
+  "keywords": ["Drupal"],
+  "license": "GPL-2.0+",
+  "homepage": "https://github.com/ericpugh/drupal-similarreferences",
+  "minimum-stability": "dev",
+  "support": {
+    "issues": "https://github.com/ericpugh/drupal-similarreferences/issues",
+    "source": "http://cgit.drupalcode.org/similarreferences"
+  },
+  "require": { }
+}
