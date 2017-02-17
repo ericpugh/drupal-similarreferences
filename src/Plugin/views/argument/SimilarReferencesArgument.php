@@ -80,20 +80,7 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
   public function buildOptionsForm(&$form, FormStateInterface $form_state) {
 
     parent::buildOptionsForm($form, $form_state);
-    $field_properties = [
-      'settings' => [
-        'target_type' => 'node',
-      ],
-      'entity_type' => 'node',
-      'type' => 'entity_reference',
-      'deleted' => FALSE,
-      'status' => 1,
-    ];
-    $fields = $this->entityTypeManager->getStorage('field_storage_config')->loadByProperties($field_properties);
-    $referenceFields = [];
-    foreach ($fields as $field) {
-      $referenceFields[$field->get('field_name')] = $field->get('field_name');
-    }
+    $referenceFields = $this->getContentReferenceFields();
 
     $form['reference_fields'] = array(
       '#type' => 'checkboxes',
@@ -119,60 +106,116 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
     if (isset($this->argument_validated)) {
       return $this->argument_validated;
     }
+
+    // The argument.
     $this->value = [$arg => $arg];
-    // Get the content reference fields.
+
+    // Get the content reference field names.
     $referenceFields = empty($this->options['reference_fields']) ? [] : $this->options['reference_fields'];
     foreach ($referenceFields as $key => $val) {
       if ($val === 0) {
         unset($referenceFields[$key]);
       }
     }
-    // Get the similar node ids.
-    $this->nids = [];
-    foreach ($referenceFields as $key => $fieldName) {
-      $table = sprintf('node__%s', $fieldName);
-      $col = sprintf('%s_target_id', $fieldName);
-      // Get the target ids from selected fields.
-      $select = $this->connection->select($table, 'fd');
-      $select->fields('fd', ['entity_id', $col]);
-      $select->condition('entity_id', $arg);
-      $select->distinct();
-      $targetIdResults = $select->execute()->fetchAll();
-      foreach ($targetIdResults as $row) {
-        // Get the entity ids of content with shared target_id
-        $targetId = $row->{$col};
-        $select = $this->connection->select($table, 'fd');
-        $select->fields('fd', ['entity_id', $col]);
-        $select->condition($col, $targetId);
-        $entityIdResults = array_keys($select->execute()->fetchAllKeyed());
-        foreach ($entityIdResults as $entityId) {
-          $this->nids[$entityId] = $entityId;
-        }
-      }
+
+    // Get information from each content reference field.
+    $fields = [];
+    foreach ($referenceFields as $fieldName) {
+      $fields[$fieldName]['table_name'] = sprintf('node__%s', $fieldName);
+      $fields[$fieldName]['column_name'] = sprintf('%s_target_id', $fieldName);
+      $fields[$fieldName]['target_ids'] = $this->getContentReferenceFieldTargetIds($fieldName, $arg);
     }
-    $this->view->nids = $this->nids;
-    if (count($this->nids) == 0) {
+    $this->fields = $fields;
+
+    if (empty($fields)) {
       return FALSE;
     }
 
     return TRUE;
+
   }
 
   /**
    * Add filter(s).
    */
   public function query() {
-//    dpm($this->nids);
-
     $this->ensureMyTable();
-    // @TODO how to calculate percentage of references, like Similar by Terms does with taxonomy_index?
-    $this->query->addWhere(0, "node.nid", $this->nids, 'IN');
+    // @TODO how to calculate percentage of references?
+
+    foreach ($this->fields as $name => $field) {
+      $configuration = array(
+        'left_table' => 'node_field_data',
+        'left_field' => 'nid',
+        'table' => $field['table_name'],
+        'field' => $field['column_name'],
+        'adjusted' => TRUE,
+      );
+      $join = \Drupal\views\Views::pluginManager('join')->createInstance('standard', $configuration);
+      $this->query->addRelationship($field['table_name'], $join, 'node_field_data');
+      dpm($field['target_ids']);
+      if (!empty($field['target_ids'])) {
+        // Get entity ids from join table
+        $select = $this->connection->select($field['table_name'], 'fd');
+        $select->fields('fd', ['entity_id', $field['column_name']]);
+        $select->condition($field['column_name'], $field['target_ids'], 'IN');
+        $entityIds = array_keys($select->execute()->fetchAllKeyed());
+
+         $this->query->addWhere(0, $field['table_name'] . '.' . $field['column_name'], $entityIds, 'IN');
+      }
+
+    }
 
     // Exclude the current node(s)
     if (empty($this->options['include_args'])) {
       $this->query->addWhere(0, "node.nid", $this->value, 'NOT IN');
     }
     $this->query->addGroupBy('nid');
+  }
+
+
+  /**
+   * Get the target_id values of a given entity ID and field name
+   * @param string $field
+   *   The field name.
+   * @param integer $entityId
+   *   The entity ID.
+   * @return array
+   */
+  public function getContentReferenceFieldTargetIds($field, $entityId) {
+    $table = sprintf('node__%s', $field);
+    $col = sprintf('%s_target_id', $field);
+    $select = $this->connection->select($table, 'fd');
+    $select->fields('fd', ['entity_id', $col]);
+    $select->condition('entity_id', $entityId);
+    $select->distinct();
+    $results = $select->execute()->fetchAll();
+    $ids = [];
+    foreach ($results as $row) {
+      $ids[] = $row->{$col};
+    }
+
+    return $ids;
+  }
+
+  /**
+   * @return array
+   */
+  public function getContentReferenceFields() {
+    $field_properties = [
+      'settings' => [
+        'target_type' => 'node',
+      ],
+      'entity_type' => 'node',
+      'type' => 'entity_reference',
+      'deleted' => FALSE,
+      'status' => 1,
+    ];
+    $fields = $this->entityTypeManager->getStorage('field_storage_config')->loadByProperties($field_properties);
+    $referenceFields = [];
+    foreach ($fields as $field) {
+      $referenceFields[$field->get('field_name')] = $field->get('field_name');
+    }
+    return $referenceFields;
   }
 
 }

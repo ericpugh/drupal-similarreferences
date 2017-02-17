@@ -27,6 +27,9 @@ class SimilarReferencesSort extends SortPluginBase {
    */
   public function query() {
     $this->ensureMyTable();
+    //    \Drupal::logger('similarreferences')->debug(print_r($this, TRUE));
+//    dpm($this);
+
     $this->query->addOrderBy($this->tableAlias, 'nid', $this->options['order'], NULL, array('function' => 'count'));
   }
 
