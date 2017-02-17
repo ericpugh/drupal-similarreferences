@@ -140,27 +140,24 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
    */
   public function query() {
     $this->ensureMyTable();
-    // @TODO how to calculate percentage of references?
 
     foreach ($this->fields as $name => $field) {
       $configuration = array(
         'left_table' => 'node_field_data',
         'left_field' => 'nid',
         'table' => $field['table_name'],
-        'field' => $field['column_name'],
+        'field' => 'entity_id',
         'adjusted' => TRUE,
       );
       $join = \Drupal\views\Views::pluginManager('join')->createInstance('standard', $configuration);
       $this->query->addRelationship($field['table_name'], $join, 'node_field_data');
-      dpm($field['target_ids']);
       if (!empty($field['target_ids'])) {
         // Get entity ids from join table
         $select = $this->connection->select($field['table_name'], 'fd');
         $select->fields('fd', ['entity_id', $field['column_name']]);
         $select->condition($field['column_name'], $field['target_ids'], 'IN');
         $entityIds = array_keys($select->execute()->fetchAllKeyed());
-
-         $this->query->addWhere(0, $field['table_name'] . '.' . $field['column_name'], $entityIds, 'IN');
+        $this->query->addWhere(0, $field['table_name'] . '.entity_id', $entityIds, 'IN');
       }
 
     }
