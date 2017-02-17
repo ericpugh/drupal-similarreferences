@@ -80,7 +80,6 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
   public function buildOptionsForm(&$form, FormStateInterface $form_state) {
 
     parent::buildOptionsForm($form, $form_state);
-//    $result = $this->vocabularyStorage->loadMultiple();
     $field_properties = [
       'settings' => [
         'target_type' => 'node',
@@ -93,10 +92,10 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
     $fields = $this->entityTypeManager->getStorage('field_storage_config')->loadByProperties($field_properties);
     $referenceFields = [];
     foreach ($fields as $field) {
-      $referenceFields[$field->id()] = $field->get('field_name');
+      $referenceFields[$field->get('field_name')] = $field->get('field_name');
     }
 
-    $form['references'] = array(
+    $form['reference_fields'] = array(
       '#type' => 'checkboxes',
       '#title' => $this->t('Limit similarity to references from these content reference fields'),
       '#description' => $this->t('Choosing any reference fields here will limit the fields used to calculate similarity. Leave all checkboxes unselected to not limit fields.'),
@@ -117,36 +116,44 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
    */
   public function validateArgument($arg) {
 
-//    if (isset($this->argument_validated)) {
-//      return $this->argument_validated;
-//    }
-//
-//    $this->value = array($arg => $arg);
-//    $vocabulary_vids = empty($this->options['vocabularies']) ? array() : $this->options['vocabularies'];
-//
-//    foreach ($vocabulary_vids as $key => $val) {
-//      if ($val === 0) {
-//        unset($vocabulary_vids[$key]);
-//      }
-//    }
-//
-//    $select = $this->connection->select('taxonomy_index', 'ti')->fields('ti', array('tid'));
-//    if (count($vocabulary_vids)) {
-//      $select->join('taxonomy_term_data', 'td', 'ti.tid = td.tid');
-//      $select->condition('td.vid', $vocabulary_vids, 'IN');
-//    }
-//    $select->condition('ti.nid', $this->value, 'IN');
-//    $result = $select->execute();
-//
-//    $this->tids = array();
-//    foreach ($result as $row) {
-//      $this->tids[$row->tid] = $row->tid;
-//    }
-//    $this->view->tids = $this->tids;
-//
-//    if (count($this->tids) == 0) {
-//      return FALSE;
-//    }
+    if (isset($this->argument_validated)) {
+      return $this->argument_validated;
+    }
+    $this->value = [$arg => $arg];
+    // Get the content reference fields.
+    $referenceFields = empty($this->options['reference_fields']) ? [] : $this->options['reference_fields'];
+    foreach ($referenceFields as $key => $val) {
+      if ($val === 0) {
+        unset($referenceFields[$key]);
+      }
+    }
+    // Get the similar node ids.
+    $this->nids = [];
+    foreach ($referenceFields as $key => $fieldName) {
+      $table = sprintf('node__%s', $fieldName);
+      $col = sprintf('%s_target_id', $fieldName);
+      // Get the target ids from selected fields.
+      $select = $this->connection->select($table, 'fd');
+      $select->fields('fd', ['entity_id', $col]);
+      $select->condition('entity_id', $arg);
+      $select->distinct();
+      $targetIdResults = $select->execute()->fetchAll();
+      foreach ($targetIdResults as $row) {
+        // Get the entity ids of content with shared target_id
+        $targetId = $row->{$col};
+        $select = $this->connection->select($table, 'fd');
+        $select->fields('fd', ['entity_id', $col]);
+        $select->condition($col, $targetId);
+        $entityIdResults = array_keys($select->execute()->fetchAllKeyed());
+        foreach ($entityIdResults as $entityId) {
+          $this->nids[$entityId] = $entityId;
+        }
+      }
+    }
+    $this->view->nids = $this->nids;
+    if (count($this->nids) == 0) {
+      return FALSE;
+    }
 
     return TRUE;
   }
@@ -155,10 +162,11 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
    * Add filter(s).
    */
   public function query() {
-    $this->ensureMyTable();
+//    dpm($this->nids);
 
-//    $this->query->addTable('taxonomy_index', NULL, NULL, 'similarterms_taxonomy_index');
-//    $this->query->addWhere(0, "similarterms_taxonomy_index.tid", $this->tids, 'IN');
+    $this->ensureMyTable();
+    // @TODO how to calculate percentage of references, like Similar by Terms does with taxonomy_index?
+    $this->query->addWhere(0, "node.nid", $this->nids, 'IN');
 
     // Exclude the current node(s)
     if (empty($this->options['include_args'])) {
