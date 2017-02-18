@@ -125,7 +125,6 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
       $fields[$fieldName]['column_name'] = sprintf('%s_target_id', $fieldName);
       $fields[$fieldName]['target_ids'] = $this->getContentReferenceFieldTargetIds($fieldName, $arg);
     }
-    $this->fields = $fields;
 
     // Get entity ids and append to the field properties.
     $hasRelationship = FALSE;
@@ -139,9 +138,17 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
           $entityIds = array_keys($select->execute()->fetchAllKeyed());
           $hasRelationship = !empty($entityIds) ? TRUE : FALSE;
         }
-        $this->fields[$name]['entity_ids'] = $entityIds;
+        $fields[$name]['entity_ids'] = $entityIds;
+
+        // Clean up empty fields.
+        if (empty($field['target_ids']) || empty($fields[$name]['entity_ids'])) {
+          unset($fields[$name]);
+        }
       }
     }
+
+    $this->fields = $fields;
+
     if (empty($fields) || !$hasRelationship) {
       return FALSE;
     }
