@@ -127,7 +127,22 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
     }
     $this->fields = $fields;
 
-    if (empty($fields)) {
+    // Get entity ids and append to the field properties.
+    $hasRelationship = FALSE;
+    if ($fields) {
+      foreach ($fields as $name => $field) {
+        $entityIds = [];
+        if (!empty($field['target_ids'])) {
+          $select = $this->connection->select($field['table_name'], 'fd');
+          $select->fields('fd', ['entity_id', $field['column_name']]);
+          $select->condition($field['column_name'], $field['target_ids'], 'IN');
+          $entityIds = array_keys($select->execute()->fetchAllKeyed());
+          $hasRelationship = !empty($entityIds) ? TRUE : FALSE;
+        }
+        $this->fields[$name]['entity_ids'] = $entityIds;
+      }
+    }
+    if (empty($fields) || !$hasRelationship) {
       return FALSE;
     }
 
@@ -141,25 +156,20 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
   public function query() {
     $this->ensureMyTable();
 
+    // Add relationships.
     foreach ($this->fields as $name => $field) {
-      $configuration = array(
-        'left_table' => 'node_field_data',
-        'left_field' => 'nid',
-        'table' => $field['table_name'],
-        'field' => 'entity_id',
-        'adjusted' => TRUE,
-      );
-      $join = \Drupal\views\Views::pluginManager('join')->createInstance('standard', $configuration);
-      $this->query->addRelationship($field['table_name'], $join, 'node_field_data');
-      if (!empty($field['target_ids'])) {
-        // Get entity ids from join table
-        $select = $this->connection->select($field['table_name'], 'fd');
-        $select->fields('fd', ['entity_id', $field['column_name']]);
-        $select->condition($field['column_name'], $field['target_ids'], 'IN');
-        $entityIds = array_keys($select->execute()->fetchAllKeyed());
-        $this->query->addWhere(0, $field['table_name'] . '.entity_id', $entityIds, 'IN');
+      if (!empty($field['entity_ids'])) {
+        $configuration = array(
+          'left_table' => 'node_field_data',
+          'left_field' => 'nid',
+          'table' => $field['table_name'],
+          'field' => 'entity_id',
+          'adjusted' => TRUE,
+        );
+        $join = \Drupal\views\Views::pluginManager('join')->createInstance('standard', $configuration);
+        $this->query->addRelationship($field['table_name'], $join, 'node_field_data');
+        $this->query->addWhere(0, $field['table_name'] . '.entity_id', $field['entity_ids'], 'IN');
       }
-
     }
 
     // Exclude the current node(s)
