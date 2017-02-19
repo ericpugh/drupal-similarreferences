@@ -135,6 +135,7 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
 
     // Get entity ids and append to the field properties.
     $hasRelationship = FALSE;
+    $similarCount = 0;
     if ($fields) {
       foreach ($fields as $name => $field) {
         $entityIds = [];
@@ -146,6 +147,7 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
           $hasRelationship = !empty($entityIds) ? TRUE : FALSE;
         }
         $fields[$name]['entity_ids'] = $entityIds;
+        $similarCount += count($entityIds);
 
         // Clean up empty fields.
         if (empty($field['target_ids']) || empty($fields[$name]['entity_ids'])) {
@@ -155,6 +157,7 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
     }
 
     $this->fields = $fields;
+    $this->view->total_similar = $similarCount;
 
     if (empty($fields) || !$hasRelationship) {
       return FALSE;

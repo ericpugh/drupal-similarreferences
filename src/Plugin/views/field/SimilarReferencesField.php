@@ -67,7 +67,7 @@ class SimilarReferencesField extends FieldPluginBase {
       return $values->{$this->field_alias};
     }
     else {
-      $output = round($values->{$this->field_alias} / count($this->view->result) * 100);
+      $output = round($values->{$this->field_alias} / $this->view->total_similar * 100);
       if (!empty($this->options['percent_suffix'])) {
         $output .= '%';
       }
