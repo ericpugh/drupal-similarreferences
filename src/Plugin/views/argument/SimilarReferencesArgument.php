@@ -117,6 +117,13 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
         unset($referenceFields[$key]);
       }
     }
+    // Use all fields if none explicitly selected.
+    if (empty($referenceFields)) {
+      $fields = array_keys($this->options['reference_fields']);
+      foreach ($fields as $field) {
+        $referenceFields[$field] = $field;
+      }
+    }
 
     // Get information from each content reference field.
     $fields = [];
