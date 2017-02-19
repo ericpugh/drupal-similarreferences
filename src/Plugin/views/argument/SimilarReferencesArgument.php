@@ -80,7 +80,11 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
   public function buildOptionsForm(&$form, FormStateInterface $form_state) {
 
     parent::buildOptionsForm($form, $form_state);
-    $referenceFields = $this->getContentReferenceFields();
+
+    $referenceFields = [];
+    foreach (['node', 'user'] as $type) {
+      $referenceFields += $this->getReferenceFieldsByType($type);
+    }
 
     $form['reference_fields'] = array(
       '#type' => 'checkboxes',
@@ -110,11 +114,18 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
     // The argument.
     $this->value = [$arg => $arg];
 
-    // Get the content reference field names.
+    // Get the content reference fields selected.
     $referenceFields = empty($this->options['reference_fields']) ? [] : $this->options['reference_fields'];
     foreach ($referenceFields as $key => $val) {
       if ($val === 0) {
         unset($referenceFields[$key]);
+      }
+    }
+    // Use all fields if none explicitly selected.
+    if (empty($referenceFields)) {
+      $fields = array_keys($this->options['reference_fields']);
+      foreach ($fields as $field) {
+        $referenceFields[$field] = $field;
       }
     }
 
@@ -123,11 +134,12 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
     foreach ($referenceFields as $fieldName) {
       $fields[$fieldName]['table_name'] = sprintf('node__%s', $fieldName);
       $fields[$fieldName]['column_name'] = sprintf('%s_target_id', $fieldName);
-      $fields[$fieldName]['target_ids'] = $this->getContentReferenceFieldTargetIds($fieldName, $arg);
+      $fields[$fieldName]['target_ids'] = $this->getReferenceFieldTargetIds($fieldName, $arg);
     }
 
     // Get entity ids and append to the field properties.
     $hasRelationship = FALSE;
+    $similarCount = 0;
     if ($fields) {
       foreach ($fields as $name => $field) {
         $entityIds = [];
@@ -139,6 +151,7 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
           $hasRelationship = !empty($entityIds) ? TRUE : FALSE;
         }
         $fields[$name]['entity_ids'] = $entityIds;
+        $similarCount += count($entityIds);
 
         // Clean up empty fields.
         if (empty($field['target_ids']) || empty($fields[$name]['entity_ids'])) {
@@ -148,6 +161,7 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
     }
 
     $this->fields = $fields;
+    $this->view->total_similar = $similarCount;
 
     if (empty($fields) || !$hasRelationship) {
       return FALSE;
@@ -195,7 +209,7 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
    *   The entity ID.
    * @return array
    */
-  public function getContentReferenceFieldTargetIds($field, $entityId) {
+  public function getReferenceFieldTargetIds($field, $entityId) {
     $table = sprintf('node__%s', $field);
     $col = sprintf('%s_target_id', $field);
     $select = $this->connection->select($table, 'fd');
@@ -212,12 +226,14 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
   }
 
   /**
+   * @param string $targetType
+   *   Target entity type
    * @return array
    */
-  public function getContentReferenceFields() {
+  public function getReferenceFieldsByType($targetType) {
     $field_properties = [
       'settings' => [
-        'target_type' => 'node',
+        'target_type' => $targetType,
       ],
       'entity_type' => 'node',
       'type' => 'entity_reference',
