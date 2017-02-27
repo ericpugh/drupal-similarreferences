@@ -152,7 +152,6 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
         }
         $fields[$name]['entity_ids'] = $entityIds;
         $similarCount += count($entityIds);
-
         // Clean up empty fields.
         if (empty($field['target_ids']) || empty($fields[$name]['entity_ids'])) {
           unset($fields[$name]);
@@ -219,7 +218,11 @@ class SimilarReferencesArgument extends NumericArgument implements ContainerFact
     $results = $select->execute()->fetchAll();
     $ids = [];
     foreach ($results as $row) {
-      $ids[] = $row->{$col};
+        $ids[] = $row->{$col};
+    }
+    // Don't allow zero as a target_id value.
+    if(($key = array_search(0, $ids)) !== false) {
+      unset($ids[$key]);
     }
 
     return $ids;
